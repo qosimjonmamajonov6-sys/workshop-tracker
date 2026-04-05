@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_BASE = 'https://6a17-34-190-48-2.ngrok-free.app/api';
+const API_BASE = '/api';
 
 function App() {
   const [data, setData] = useState({
@@ -40,6 +40,43 @@ function App() {
       alert('Xatolik: ' + (err.response?.data?.error || err.message));
     }
   };
+
+  const handleAddMaterial = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const materialData = {
+      name: formData.get('name'),
+      quantity: parseFloat(formData.get('quantity')),
+      unit: formData.get('unit'),
+      price: parseFloat(formData.get('price'))
+    };
+    try {
+      await axios.post(`${API_BASE}/materials`, materialData);
+      alert('Xomashyo muvaffaqiyatli qo\'shildi!');
+      e.target.reset();
+      fetchData();
+    } catch (err) {
+      alert('Xatolik: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleAddWorker = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const workerData = {
+      name: formData.get('name'),
+      payRate: parseFloat(formData.get('payRate'))
+    };
+    try {
+      await axios.post(`${API_BASE}/workers`, workerData);
+      alert('Ishchi muvaffaqiyatli qo\'shildi!');
+      e.target.reset();
+      fetchData();
+    } catch (err) {
+      alert('Xatolik: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
 
   if (loading) return <div className="flex items-center justify-center h-screen bg-slate-900 text-white text-2xl font-bold">Yuklanmoqda...</div>;
 
