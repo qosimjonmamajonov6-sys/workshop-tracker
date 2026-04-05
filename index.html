@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sex Kirim-Chiqim | Workshop Manager</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Sidebar/Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-industry"></i>
+                <span>SexManager</span>
+            </div>
+            <nav id="main-nav">
+                <a href="#" class="nav-item active" data-section="dashboard"><i class="fas fa-th-large"></i> Boshqaruv</a>
+                <a href="#" class="nav-item" data-section="employees"><i class="fas fa-users"></i> Ishchilar</a>
+                <a href="#" class="nav-item" data-section="reports"><i class="fas fa-chart-line"></i> Hisobotlar</a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Boshqaruv Paneli</h1>
+                <div class="user-profile">
+                    <span id="current-date">Bugun: 4-Aprel, 2026</span>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="app-view">
+
+            <!-- Dashboard Stats -->
+            <section class="stats-grid">
+                <div class="stat-card balance">
+                    <div class="stat-info">
+                        <p class="label">Kassa Qoldig'i</p>
+                        <h2 id="total-balance">0 UZS</h2>
+                    </div>
+                    <div class="stat-icon"><i class="fas fa-wallet"></i></div>
+                </div>
+                <div class="stat-card income">
+                    <div class="stat-info">
+                        <p class="label">Jami Kirim</p>
+                        <h2 id="total-income">0 UZS</h2>
+                    </div>
+                    <div class="stat-icon"><i class="fas fa-arrow-down"></i></div>
+                </div>
+                <div class="stat-card expense">
+                    <div class="stat-info">
+                        <p class="label">Jami Chiqim</p>
+                        <h2 id="total-expense">0 UZS</h2>
+                    </div>
+                    <div class="stat-icon"><i class="fas fa-arrow-up"></i></div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-container glass">
+                <div class="chart-wrapper">
+                    <canvas id="incomeExpenseChart"></canvas>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="dailyTrendChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Action Area -->
+            <div class="action-grid">
+                <!-- Add Transaction Form -->
+                <section class="form-container glass">
+                    <h3>Yangi Amaliyot</h3>
+                    <form id="transaction-form">
+                        <div class="input-group">
+                            <label>Turi</label>
+                            <div class="type-selector">
+                                <label class="radio-label">
+                                    <input type="radio" name="type" value="kirim" checked>
+                                    <span class="radio-btn radio-kirim">Kirim</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="type" value="chiqim">
+                                    <span class="radio-btn radio-chiqim">Chiqim</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="description">Manba / Tavsif</label>
+                            <input type="text" id="description" placeholder="Masalan: Mahsulot sotuvi" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="amount">Summa (UZS)</label>
+                            <input type="number" id="amount" placeholder="0" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="category">Turkum</label>
+                            <select id="category">
+                                <option value="Xom-ashyo">Xom-ashyo</option>
+                                <option value="Ish haqi">Ish haqi</option>
+                                <option value="Sotuv">Sotuv</option>
+                                <option value="Ijara">Ijara</option>
+                                <option value="Elektr-energiya">Elektr-energiya</option>
+                                <option value="Logistika">Logistika</option>
+                                <option value="Boshqa">Boshqa</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn-submit">Qo'shish</button>
+                    </form>
+                </section>
+
+                <!-- Transactions History -->
+                <section class="history-container glass">
+                    <div class="table-header">
+                        <h3>Amallar Tarixi</h3>
+                        <div class="filter-tabs" id="date-filters">
+                            <button class="filter-btn active" data-range="all">Hammasi</button>
+                            <button class="filter-btn" data-range="today">Bugun</button>
+                            <button class="filter-btn" data-range="week">Hafta</button>
+                            <button class="filter-btn" data-range="month">Oy</button>
+                        </div>
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="search-input" placeholder="Qidirish...">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="transactions-table">
+                            <thead>
+                                <tr>
+                                    <th>Sana</th>
+                                    <th>Tavsif</th>
+                                    <th>Turkum</th>
+                                    <th>Summa</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="transaction-list">
+                                <!-- JS will populate this -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Employees View -->
+            <div id="employees-view" class="app-view" style="display: none;">
+                <div class="action-grid">
+                    <!-- Add Employee Form -->
+                    <section class="form-container glass">
+                        <h3>Yangi Ishchi</h3>
+                        <form id="employee-form">
+                            <div class="input-group">
+                                <label for="emp-name">Ism-Sharif</label>
+                                <input type="text" id="emp-name" placeholder="Masalan: Ali Valiyev" required>
+                            </div>
+                            <div class="input-group">
+                                <label>To'lov Turi</label>
+                                <select id="emp-type">
+                                    <option value="hourly">Soatbay</option>
+                                    <option value="daily">Kunbay</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label for="emp-rate">Stavka (UZS)</label>
+                                <input type="number" id="emp-rate" placeholder="Soatlik yoki kunlik summa" required>
+                            </div>
+                            <button type="submit" class="btn-submit" id="emp-submit-btn">Ishchini Qo'shish</button>
+                        </form>
+                    </section>
+
+                    <!-- Employees List -->
+                    <section class="history-container glass">
+                        <h3>Ishchilar Ro'yxati</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Ism</th>
+                                        <th>Turi</th>
+                                        <th>Stavka</th>
+                                        <th>Balans</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="employee-list">
+                                    <!-- JS populated -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Attendance & Advance Section -->
+                <div class="action-grid" style="margin-top: 2rem;">
+                    <section class="form-container glass">
+                        <h3>Davomat va Amallar</h3>
+                        <form id="attendance-form">
+                            <div class="input-group">
+                                <label>Ishchini Tanlang</label>
+                                <select id="att-emp-select" required>
+                                    <option value="">Tanlang...</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>Amal Turi</label>
+                                <select id="att-type">
+                                    <option value="work">Ish vaqti qo'shish</option>
+                                    <option value="advance">Avans berish</option>
+                                </select>
+                            </div>
+                            <div id="att-value-group" class="input-group">
+                                <label id="att-label">Qiymat (Soat/Kun)</label>
+                                <input type="number" id="att-value" placeholder="0" required>
+                            </div>
+                            <button type="submit" class="btn-submit">Saqlash</button>
+                        </form>
+                    </section>
+
+                    <section class="history-container glass">
+                        <h3>Oxirgi Amallar (Ishchilar)</h3>
+                        <div class="table-wrapper">
+                            <table id="emp-history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Sana</th>
+                                        <th>Ishchi</th>
+                                        <th>Tavsif</th>
+                                        <th>Summa</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="emp-action-list">
+                                    <!-- JS populated -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
