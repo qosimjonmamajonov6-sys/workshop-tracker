@@ -1,113 +1,120 @@
-const mongoose = require('mongoose');
+const { Sequelize, DataTypes } = require('sequelize');
+require('dotenv').config();
+
+// --- Database Connection ---
+const DATABASE_URL = process.env.DATABASE_URL || 'postgres://localhost:5432/workshop';
+const sequelize = new Sequelize(DATABASE_URL, {
+    dialect: 'postgres',
+    logging: false,
+    dialectOptions: process.env.NODE_ENV === 'production' ? {
+        ssl: {
+            require: true,
+            rejectUnauthorized: false
+        }
+    } : {}
+});
 
 // --- Models ---
 
-const UserSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    role: { type: String, enum: ['admin', 'worker'], default: 'worker' },
-    payRate: { type: Number, default: 0 }, // Ishbay haq stavkasi
-    balance: { type: Number, default: 0 } // Ishchi balansi/oyligi
+const User = sequelize.define('User', {
+    name: { type: DataTypes.STRING, allowNull: false },
+    role: { type: DataTypes.ENUM('admin', 'worker'), defaultValue: 'worker' },
+    payRate: { type: DataTypes.FLOAT, defaultValue: 0 },
+    balance: { type: DataTypes.FLOAT, defaultValue: 0 }
 });
 
-const RawMaterialSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    quantity: { type: Number, default: 0 },
-    unit: { type: String, required: true }, // kg, dona, m, va h.k.
-    price: { type: Number, default: 0 }
+const RawMaterial = sequelize.define('RawMaterial', {
+    name: { type: DataTypes.STRING, allowNull: false },
+    quantity: { type: DataTypes.FLOAT, defaultValue: 0 },
+    unit: { type: DataTypes.STRING, allowNull: false },
+    price: { type: DataTypes.FLOAT, defaultValue: 0 }
 });
 
-const ProductSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    stock: { type: Number, default: 0 }, // Tayyor mahsulot qoldig'i
-    ingredients: [{
-        material: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-        amount: { type: Number, required: true }
-    }]
+const Product = sequelize.define('Product', {
+    name: { type: DataTypes.STRING, allowNull: false },
+    stock: { type: DataTypes.FLOAT, defaultValue: 0 },
+    ingredients: { type: DataTypes.JSONB, defaultValue: [] }
+    /* 
+    Ingredients format: 
+    [{ materialId: 1, amount: 1.5 }]
+    */
 });
 
-const ProductionLogSchema = new mongoose.Schema({
-    worker: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-    amount: { type: Number, required: true },
-    date: { type: Date, default: Date.now }
+const ProductionLog = sequelize.define('ProductionLog', {
+    amount: { type: DataTypes.FLOAT, allowNull: false },
+    date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
 
-const TransactionSchema = new mongoose.Schema({
-    type: { type: String, enum: ['kirim', 'chiqim'], required: true },
-    amount: { type: Number, required: true },
-    description: { type: String },
-    date: { type: Date, default: Date.now }
-});
+// Associations
+ProductionLog.belongsTo(User, { as: 'worker' });
+ProductionLog.belongsTo(Product, { as: 'product' });
 
-const User = mongoose.model('User', UserSchema);
-const RawMaterial = mongoose.model('RawMaterial', RawMaterialSchema);
-const Product = mongoose.model('Product', ProductSchema);
-const ProductionLog = mongoose.model('ProductionLog', ProductionLogSchema);
-const Transaction = mongoose.model('Transaction', TransactionSchema);
+const Transaction = sequelize.define('Transaction', {
+    type: { type: DataTypes.ENUM('kirim', 'chiqim'), allowNull: false },
+    amount: { type: DataTypes.FLOAT, allowNull: false },
+    description: { type: DataTypes.STRING },
+    date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+});
 
 // --- Production Logic ---
 
 /**
  * produceProduct - Mahsulot tayyor bo'lganda ombordan xomashyoni ayirish va ishchi haqini hisoblash
- * @param {String} productId - Mahsulot IDsi
+ * @param {Number} productId - Mahsulot IDsi
  * @param {Number} amount - Ishlab chiqarilgan miqdor
- * @param {String} workerId - Ishchi IDsi
+ * @param {Number} workerId - Ishchi IDsi
  */
 async function produceProduct(productId, amount, workerId) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const t = await sequelize.transaction();
 
     try {
-        const product = await Product.findById(productId).populate('ingredients.material').session(session);
+        const product = await Product.findByPk(productId, { transaction: t });
         if (!product) throw new Error('Mahsulot topilmadi');
 
-        const worker = await User.findById(workerId).session(session);
+        const worker = await User.findByPk(workerId, { transaction: t });
         if (!worker) throw new Error('Ishchi topilmadi');
 
         // 1. Zaxirani tekshirish
         for (const item of product.ingredients) {
-            const material = item.material;
+            const material = await RawMaterial.findByPk(item.materialId, { transaction: t });
+            if (!material) throw new Error(`Xomashyo topilmadi (ID: ${item.materialId})`);
+            
             const neededTotal = item.amount * amount;
-
             if (material.quantity < neededTotal) {
                 throw new Error(`Xomashyo yetarli emas: ${material.name} (Kerak: ${neededTotal}, Mavjud: ${material.quantity})`);
             }
         }
 
-        // 2. Xomashyoni ombordan ayirish va mahsulotni qo'shish
+        // 2. Xomashyoni ombordan ayirish
         for (const item of product.ingredients) {
-            await RawMaterial.findByIdAndUpdate(
-                item.material._id, 
-                { $inc: { quantity: -(item.amount * amount) } },
-                { session }
-            );
+            const material = await RawMaterial.findByPk(item.materialId, { transaction: t });
+            material.quantity -= (item.amount * amount);
+            await material.save({ transaction: t });
         }
 
         // Tayyor mahsulot zaxirasini oshirish
-        await Product.findByIdAndUpdate(productId, { $inc: { stock: amount } }, { session });
+        product.stock += amount;
+        await product.save({ transaction: t });
 
         // 3. Ishchining hisobiga ishbay haqini qo'shish
         const bonus = amount * worker.payRate;
-        await User.findByIdAndUpdate(workerId, { $inc: { balance: bonus } }, { session });
+        worker.balance += bonus;
+        await worker.save({ transaction: t });
 
         // 4. Log yaratish
-        const log = new ProductionLog({
-            worker: workerId,
-            product: productId,
+        await ProductionLog.create({
+            workerId: worker.id,
+            productId: product.id,
             amount: amount
-        });
-        await log.save({ session });
+        }, { transaction: t });
 
-        await session.commitTransaction();
-        session.endSession();
-        
+        await t.commit();
         return { success: true, message: 'Ishlab chiqarish muvaffaqiyatli yakunlandi', bonus };
 
     } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
+        await t.rollback();
         throw error;
     }
 }
 
-module.exports = { User, RawMaterial, Product, ProductionLog, Transaction, produceProduct };
+module.exports = { sequelize, User, RawMaterial, Product, ProductionLog, Transaction, produceProduct };
