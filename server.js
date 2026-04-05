@@ -1,18 +1,20 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
-const { User, RawMaterial, Product, ProductionLog, Transaction, produceProduct } = require('./models');
+const { sequelize, User, RawMaterial, Product, ProductionLog, Transaction, produceProduct } = require('./models');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/workshop';
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('MongoDB connected'))
+// --- Database Connection & Sync ---
+sequelize.authenticate()
+    .then(() => {
+        console.log('PostgreSQL connected');
+        return sequelize.sync(); // Create tables if they don't exist
+    })
     .catch(err => console.error('Connection error:', err));
 
 // --- API Endpoints ---
@@ -20,10 +22,14 @@ mongoose.connect(MONGO_URI)
 // Get Stats
 app.get('/api/stats', async (req, res) => {
     try {
-        const materials = await RawMaterial.find();
-        const products = await Product.find();
-        const workers = await User.find({ role: 'worker' });
-        const logs = await ProductionLog.find().populate('worker product').sort({ date: -1 }).limit(10);
+        const materials = await RawMaterial.findAll();
+        const products = await Product.findAll();
+        const workers = await User.findAll({ where: { role: 'worker' } });
+        const logs = await ProductionLog.findAll({
+            include: ['worker', 'product'],
+            limit: 10,
+            order: [['date', 'DESC']]
+        });
         
         res.json({ materials, products, workers, logs });
     } catch (err) {
@@ -42,11 +48,10 @@ app.post('/api/produce', async (req, res) => {
     }
 });
 
-// Update Stock
+// Update Stock / New Material
 app.post('/api/materials', async (req, res) => {
     try {
-        const material = new RawMaterial(req.body);
-        await material.save();
+        const material = await RawMaterial.create(req.body);
         res.json(material);
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -56,7 +61,7 @@ app.post('/api/materials', async (req, res) => {
 // Get Workers
 app.get('/api/workers', async (req, res) => {
     try {
-        const workers = await User.find({ role: 'worker' });
+        const workers = await User.findAll({ where: { role: 'worker' } });
         res.json(workers);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -66,8 +71,7 @@ app.get('/api/workers', async (req, res) => {
 // Add Worker
 app.post('/api/workers', async (req, res) => {
     try {
-        const worker = new User({ ...req.body, role: 'worker' });
-        await worker.save();
+        const worker = await User.create({ ...req.body, role: 'worker' });
         res.json(worker);
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -77,7 +81,7 @@ app.post('/api/workers', async (req, res) => {
 // Get Products
 app.get('/api/products', async (req, res) => {
     try {
-        const products = await Product.find().populate('ingredients.material');
+        const products = await Product.findAll();
         res.json(products);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -87,15 +91,14 @@ app.get('/api/products', async (req, res) => {
 // Add Product
 app.post('/api/products', async (req, res) => {
     try {
-        const product = new Product(req.body);
-        await product.save();
+        const product = await Product.create(req.body);
         res.json(product);
     } catch (err) {
         res.status(400).json({ error: err.message });
     }
 });
 
-const path = require('path');
+// --- Production & Static Files ---
 
 // Serve static files from the React app in production
 if (process.env.NODE_ENV === 'production') {
@@ -107,4 +110,3 @@ if (process.env.NODE_ENV === 'production') {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
